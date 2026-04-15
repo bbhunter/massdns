@@ -1111,11 +1111,12 @@ bool dns_parse_question(uint8_t *buf, size_t len, dns_head_t *head, uint8_t **bo
         return false;
     }
     name_parsed = parse_name(buf, buf + 12, end, head->question.name.name, &head->question.name.length, &qname_end);
-    if (qname_end + 2 > end)
+    if (!name_parsed)
     {
         return false;
     }
-    if (!name_parsed)
+    // Need 4 bytes after the QNAME: 2 for QTYPE + 2 for QCLASS
+    if (qname_end + 4 > end)
     {
         return false;
     }
@@ -1406,7 +1407,10 @@ char* dns_raw_record_data2str(dns_record_t *record, uint8_t *begin, uint8_t *end
         case DNS_REC_CNAME:
         case DNS_REC_DNAME:
         case DNS_REC_PTR:
-            parse_name(begin, record->data.raw, end, name.name, &name.length, NULL);
+            if (!parse_name(begin, record->data.raw, end, name.name, &name.length, NULL))
+            {
+                goto raw;
+            }
             dns_print_readable(&ptr, buf_end - ptr, name.name, name.length, true);
             break;
         case DNS_REC_MX:
@@ -1414,7 +1418,10 @@ char* dns_raw_record_data2str(dns_record_t *record, uint8_t *begin, uint8_t *end
             {
                 goto raw;
             }
-            parse_name(begin, record->data.raw + 2, end, name.name, &name.length, NULL);
+            if (!parse_name(begin, record->data.raw + 2, end, name.name, &name.length, NULL))
+            {
+                goto raw;
+            }
             int no = sprintf(buf, "%" PRIu16 " ", ntohs(*((uint16_t*)record->data.raw)));
             ptr += no;
             dns_print_readable(&ptr, buf_end - ptr, name.name, name.length, true);
@@ -1453,7 +1460,10 @@ char* dns_raw_record_data2str(dns_record_t *record, uint8_t *begin, uint8_t *end
                 goto raw;
             }
 
-            parse_name(begin, record->data.raw, end, name.name, &name.length, &next);
+            if (!parse_name(begin, record->data.raw, end, name.name, &name.length, &next))
+            {
+                goto raw;
+            }
             dns_print_readable(&ptr, buf_end - ptr, name.name, name.length, true);
             *(ptr++) = ' ';
 
@@ -1461,7 +1471,10 @@ char* dns_raw_record_data2str(dns_record_t *record, uint8_t *begin, uint8_t *end
             {
                 goto raw;
             }
-            parse_name(begin, next, end, name.name, &name.length, &next);
+            if (!parse_name(begin, next, end, name.name, &name.length, &next))
+            {
+                goto raw;
+            }
             dns_print_readable(&ptr, buf_end - ptr, name.name, name.length, true);
             *(ptr++) = ' ';
             if(next + 20 > record->data.raw + record->length)
@@ -1525,7 +1538,10 @@ char* dns_raw_record_data2str(dns_record_t *record, uint8_t *begin, uint8_t *end
                 return buf;
             }
             ptr += written;
-            parse_name(begin, record->data.raw + 6, end, name.name, &name.length, NULL);
+            if (!parse_name(begin, record->data.raw + 6, end, name.name, &name.length, NULL))
+            {
+                goto raw;
+            }
             dns_print_readable(&ptr, buf_end - ptr, name.name, name.length, true);
             break;
         case DNS_REC_SMIMEA:
